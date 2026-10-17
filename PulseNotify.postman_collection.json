@@ -1,0 +1,145 @@
+{
+  "info": {
+    "_postman_id": "bbcc9000-d3bb-495e-bd05-33e0198381a8",
+    "name": "PulseNotify API",
+    "description": "Core authentication, alert, mock-price and admin API scenarios.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "access_token", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "alert_id", "value": "1" },
+    { "key": "foreign_alert_id", "value": "999999" },
+    { "key": "username", "value": "pulse_user" },
+    { "key": "password", "value": "securepass123" },
+    { "key": "email", "value": "alice@example.com" }
+  ],
+  "item": [
+    {
+      "name": "1. Register — Success",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"username\":\"{{username}}\",\"password\":\"{{password}}\",\"email\":\"{{email}}\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{base_url}}/api/auth/register/"
+      },
+      "event": [
+        { "listen": "prerequest", "script": { "exec": ["pm.collectionVariables.set('username', 'pulse_' + Date.now());"], "type": "text/javascript" } },
+        { "listen": "test", "script": { "exec": ["pm.test('created', () => pm.response.to.have.status(201));", "if (pm.response.code === 201) {", "  const body = pm.response.json();", "  pm.collectionVariables.set('access_token', body.access);", "  pm.test('registration response fields and default role', () => {", "    pm.expect(body.username).to.eql(pm.collectionVariables.get('username'));", "    pm.expect(body.access).to.be.a('string').and.not.empty;", "    pm.expect(body.role).to.eql('user');", "  });", "}"], "type": "text/javascript" } }
+      ]
+    },
+    {
+      "name": "2. Register — Duplicate Username",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"username\":\"{{username}}\",\"password\":\"{{password}}\",\"email\":\"{{email}}\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{base_url}}/api/auth/register/"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('duplicate username rejected', () => pm.response.to.have.status(400));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "3. Login — Success",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"username\":\"{{username}}\",\"password\":\"{{password}}\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{base_url}}/api/auth/login/"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('logged in', () => pm.response.to.have.status(200));", "if (pm.response.code === 200) {", "  const body = pm.response.json();", "  pm.collectionVariables.set('access_token', body.access);", "  pm.test('login response includes access token and user role', () => {", "    pm.expect(body.access).to.be.a('string').and.not.empty;", "    pm.expect(body.role).to.eql('user');", "  });", "}"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "4. Login — Invalid Credentials",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"username\":\"{{username}}\",\"password\":\"wrong-password\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{base_url}}/api/auth/login/"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('invalid credentials rejected', () => pm.response.to.have.status(401));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "5. Create Alert — Success",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"origin\":\"DEL\",\"destination\":\"BOM\",\"threshold_price\":\"7000.00\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{base_url}}/api/alerts/"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('alert created', () => pm.response.to.have.status(201));", "if (pm.response.code === 201) {", "  const body = pm.response.json();", "  pm.collectionVariables.set('alert_id', body.id);", "  pm.test('alert response includes route, threshold, and active status', () => {", "    pm.expect(body.origin).to.eql('DEL');", "    pm.expect(body.destination).to.eql('BOM');", "    pm.expect(body.threshold_price).to.eql('7000.00');", "    pm.expect(body.status).to.eql('active');", "  });", "}"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "6. List Alerts — Current User Only",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": "{{base_url}}/api/alerts/"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('alerts returned', () => pm.response.to.have.status(200));", "pm.test('response is a list', () => pm.expect(pm.response.json()).to.be.an('array'));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "7. List Alerts — Missing Token",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/api/alerts/"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('authentication required', () => pm.response.to.have.status(401));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "8. Delete Alert — Deactivate Own Alert",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": "{{base_url}}/api/alerts/{{alert_id}}/"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('alert deactivated', () => pm.response.to.have.status(200));", "pm.test('status is inactive', () => pm.expect(pm.response.json().status).to.eql('inactive'));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "9. Delete Alert — Another User's Alert",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": "{{base_url}}/api/alerts/{{foreign_alert_id}}/"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('missing or foreign alert is hidden', () => pm.response.to.have.status(404));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "10. Mock Price — Known Route",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/api/flights/price/?route=DEL-BOM"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('price returned', () => pm.response.to.have.status(200));", "pm.test('price response has the requested route and a valid price', () => {", "  const body = pm.response.json();", "  pm.expect(body.route).to.eql('DEL-BOM');", "  pm.expect(body.price).to.be.within(3000, 7000);", "});"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "11. Mock Price — Unknown Route",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/api/flights/price/?route=XYZ-ABC"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('unknown route rejected', () => pm.response.to.have.status(404));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "12. Admin Summary — Normal User Forbidden",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": "{{base_url}}/api/admin/summary/"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('normal user forbidden', () => pm.response.to.have.status(403));"], "type": "text/javascript" } }]
+    },
+    {
+      "name": "13. Admin Summary — Admin Success (set admin_access_token first)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{admin_access_token}}" }],
+        "url": "{{base_url}}/api/admin/summary/"
+      },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('admin can view summary', () => pm.response.to.have.status(200));", "if (pm.response.code === 200) {", "  const body = pm.response.json();", "  pm.test('summary fields have expected types', () => {", "    ['total_alerts', 'active_alerts', 'triggered_alerts', 'total_notifications'].forEach((key) => pm.expect(body[key]).to.be.a('number'));", "    pm.expect(body.top_routes).to.be.an('array');", "  });", "}"], "type": "text/javascript" } }]
+    }
+  ]
+}
